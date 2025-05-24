@@ -40,15 +40,19 @@ class VideoPlayer extends React.Component {
                 fluid: true,
                 playbackRates: this.speedOptions,
                 controlBar: {
+                    skipButtons: {
+                        forward: 5,
+                        backward: 5,
+                    },
                     children: [
                         'playToggle',
+                        'skipForward',
+                        'skipBackward',
                         'progressControl',
-                        // Remove default time display
-                        //'currentTimeDisplay',
-                        //'timeDivider',
-                        //'durationDisplay',
                         'PlaybackRateMenuButton',
-                        'fullscreenToggle'
+                        'chaptersButton',
+                        'fullscreenToggle',
+                        'pictureInPictureToggle',
                     ]
                 },
                 sources: [{
@@ -167,8 +171,18 @@ c
             window.videojs.registerComponent('playProgressBar', CustomPlayProgressBar);
 
             // ✅ Add to control bar
-            player.getChild('controlBar').addChild('CustomTimeDisplay', {}, 2);
+            player.getChild('controlBar').addChild('CustomTimeDisplay', {}, 3);
             player.ready(() => {
+                const chaptersTrack = player.addTextTrack('chapters', 'Chapters', 'en');
+                chaptersTrack.mode = 'hidden'; // Important for Video.js to show the button
+
+                // Add in-memory cues (chapters)
+                // Time in seconds
+                chaptersTrack.addCue(new VTTCue(0, 10, 'Introduction'));
+                chaptersTrack.addCue(new VTTCue(10, 60, 'Getting Started'));
+                chaptersTrack.addCue(new VTTCue(80*60, 120, 'Advanced Stuff'));
+
+
                 const seekBar = player.controlBar.progressControl.seekBar;
 
                 // Remove default MouseTimeDisplay child from seekBar
