@@ -10,7 +10,8 @@ class VideoPlayer extends React.Component {
             isPlaying: false,
             player: null,
             currentTime: 0,
-            duration: 0
+            duration: 0,
+            ended: false
         };
 
         this.speedOptions = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 10.0];
@@ -40,6 +41,12 @@ class VideoPlayer extends React.Component {
                 fluid: true,
                 playbackRates: this.speedOptions,
                 controlBar: {
+                    playToggle: {
+                        replay: true
+                    },
+                    volumePanel: {
+                        inline: false
+                    },
                     skipButtons: {
                         forward: 5,
                         backward: 5,
@@ -53,6 +60,7 @@ class VideoPlayer extends React.Component {
                         'chaptersButton',
                         'fullscreenToggle',
                         'pictureInPictureToggle',
+
                     ]
                 },
                 sources: [{
@@ -105,13 +113,16 @@ class VideoPlayer extends React.Component {
                 }
 
                 update(seekBarRect, seekBarPoint) {
-                    const duration = this.player_.duration();
-                    const time = seekBarPoint * duration;
+                    const VIRTUAL_DURATION = 60; // 30 minutes in seconds
+                    const time = seekBarPoint * VIRTUAL_DURATION;
                     const label = this.formatTime(time);
 
                     if (this.timeTooltip) {
                         this.timeTooltip.write(`${label}`);
                     }
+
+                    console.log(seekBarPoint)
+
                     this.el_.style.left = `${seekBarPoint * 100}%`;
                 }
 c
@@ -128,11 +139,11 @@ c
                 constructor(player, options) {
                     super(player, options);
                     this.player_ = player;
+                    this.vidPlayer = options.vidPlayer;
                     this.player_.on('timeupdate', this.updateTime.bind(this));
                 }
 
                 update(seekBarRect, seekBarPoint, event) {
-
                 }
 
                 updateTime(seekBarRect, seekBarPoint, event) {
@@ -143,20 +154,16 @@ c
                     }
 
                     // Combined logic: if an event with a valid pendingSeekTime getter exists, use it.
-                    const duration = this.player_.duration();
-                    const currentTime = this.player_.currentTime();
-                    const current = this.formatTime(currentTime);
+                    const VIRTUAL_DURATION = 60; // 30 minutes in seconds
+                    const realTime = this.player_.currentTime();
+                    const cappedTime = Math.min(realTime, VIRTUAL_DURATION);
+                    const current = this.formatTime(cappedTime);
 
-                    // if (timeTooltip) {
-                    //     timeTooltip.write(`${current}`);
-                    // }
-                    // this.el_.style.width = `${seekBarPoint * 100}%`;
+                    // Calculate percent based on capped duration
+                    const percent = (cappedTime / VIRTUAL_DURATION) * 100;
 
-                    // const currentTime = this.player_.currentTime();
-                    const percent = (duration ? (currentTime / duration) : 0) * 100;
                     this.el_.style.width = `${percent}%`;
-                    timeTooltip.update(seekBarRect, seekBarPoint, current)
-                    // timeTooltip.el_.style.left = `${percent}%`;
+                    timeTooltip.update(seekBarRect, seekBarPoint, current);
                 }
 
                 formatTime(seconds) {
@@ -172,6 +179,9 @@ c
 
             // ✅ Add to control bar
             player.getChild('controlBar').addChild('CustomTimeDisplay', {}, 3);
+            player.duration = () => {
+                return 60;
+            }
             player.ready(() => {
                 const chaptersTrack = player.addTextTrack('chapters', 'Chapters', 'en');
                 chaptersTrack.mode = 'hidden'; // Important for Video.js to show the button
@@ -200,10 +210,36 @@ c
                 }
 
                 // Add your custom one instead
-                seekBar.addChild('playProgressBar');
+                seekBar.addChild('playProgressBar', { vidPlayer: this });
             });
 
             this.setState({ player });
+            const MAX_DURATION = 1 * 60; // 30 minutes in seconds
+            player.on('timeupdate', function (a,b,c) {
+                if (!this.state.ended && player.currentTime() >= MAX_DURATION && !player.hasClass('vjs-ended')) {
+                    player.pause();
+
+                    // Simulate video end — show replay button
+                    // player.addClass('vjs-ended');
+                    player.ended(true); // this sets internal state
+                    player.trigger('ended');
+                    this.setState({ ended: true });
+                }
+                this.setState({ currentTime: player.currentTime() });
+            }.bind(this));
+
+            player.on('play', () => {
+                if (this.state.ended) {
+                    this.setState({ ended: false });
+
+                    player.pause();
+                    player.currentTime(0);
+
+                    player.one('seeked', () => {
+                        player.play();
+                    });
+                }
+            });
         }
     }
 
