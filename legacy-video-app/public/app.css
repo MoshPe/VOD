@@ -1,0 +1,6 @@
+.vjs-unavailable-segment {
+    position: absolute;
+    height: 100%;
+    background-color: rgba(245, 4, 4, 0.5);
+    pointer-events: none;
+}

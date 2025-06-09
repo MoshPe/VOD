@@ -113,7 +113,7 @@ class VideoPlayer extends React.Component {
                 }
 
                 update(seekBarRect, seekBarPoint) {
-                    const VIRTUAL_DURATION = 60; // 30 minutes in seconds
+                    const VIRTUAL_DURATION = this.player_.duration(); // 30 minutes in seconds
                     const time = seekBarPoint * VIRTUAL_DURATION;
                     const label = this.formatTime(time);
 
@@ -154,7 +154,7 @@ c
                     }
 
                     // Combined logic: if an event with a valid pendingSeekTime getter exists, use it.
-                    const VIRTUAL_DURATION = 60; // 30 minutes in seconds
+                    const VIRTUAL_DURATION = this.player_.duration(); // 30 minutes in seconds
                     const realTime = this.player_.currentTime();
                     const cappedTime = Math.min(realTime, VIRTUAL_DURATION);
                     const current = this.formatTime(cappedTime);
@@ -179,9 +179,16 @@ c
 
             // ✅ Add to control bar
             player.getChild('controlBar').addChild('CustomTimeDisplay', {}, 3);
+
+            const unavailableSegments = [
+                { start: 60, end: 120 },
+                { start: 300, end: 360 },
+            ];
+
             player.duration = () => {
-                return 60;
+                return 420;
             }
+
             player.ready(() => {
                 const chaptersTrack = player.addTextTrack('chapters', 'Chapters', 'en');
                 chaptersTrack.mode = 'hidden'; // Important for Video.js to show the button
@@ -211,10 +218,26 @@ c
 
                 // Add your custom one instead
                 seekBar.addChild('playProgressBar', { vidPlayer: this });
+
+
+                const progressControl = player.controlBar.progressControl;
+                const bar = progressControl.seekBar.el();
+
+                unavailableSegments.forEach(segment => {
+                    const left = (segment.start / player.duration()) * 100;
+                    const width = ((segment.end - segment.start) / player.duration()) * 100;
+
+                    const div = document.createElement('div');
+                    div.className = 'vjs-unavailable-segment';
+                    div.style.left = `${left}%`;
+                    div.style.width = `${width}%`;
+
+                    bar.appendChild(div);
+                });
             });
 
             this.setState({ player });
-            const MAX_DURATION = 1 * 60; // 30 minutes in seconds
+            const MAX_DURATION = 7 * 60; // 30 minutes in seconds
             player.on('timeupdate', function (a,b,c) {
                 if (!this.state.ended && player.currentTime() >= MAX_DURATION && !player.hasClass('vjs-ended')) {
                     player.pause();
@@ -226,6 +249,13 @@ c
                     this.setState({ ended: true });
                 }
                 this.setState({ currentTime: player.currentTime() });
+
+                const currentTime = player.currentTime();
+                unavailableSegments.forEach(segment => {
+                    if (currentTime >= segment.start && currentTime < segment.end) {
+                        player.currentTime(segment.end); // jump over unavailable part
+                    }
+                });
             }.bind(this));
 
             player.on('play', () => {
